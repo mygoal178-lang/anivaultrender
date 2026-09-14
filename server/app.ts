@@ -2168,7 +2168,7 @@ app.get('/api/admin/anivexa/preview/:anilistId', requireAdmin, async (req: Authe
  */
 app.post('/api/admin/anivexa/import', requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
-    if (!isSupabaseConfigured() || !supabaseAdmin) {
+    if (!isSupabaseConfigured || !supabaseAdmin) {
       return res.status(503).json({ error: 'Supabase is not configured on the server.' });
     }
     const db = supabaseAdmin;
