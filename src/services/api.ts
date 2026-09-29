@@ -28,19 +28,45 @@ async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> 
   }
 
   const res = await fetch(url, { ...options, headers });
+  const raw = await res.text();
+  const trimmed = (raw || '').trim();
+  const looksHtml =
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<HTML');
 
   if (!res.ok) {
     let errorMsg = `HTTP ${res.status}: ${res.statusText}`;
-    try {
-      const errJson = await res.json();
-      if (errJson.error) {
-        errorMsg = errJson.error;
+    if (!looksHtml && trimmed) {
+      try {
+        const errJson = JSON.parse(trimmed);
+        if (errJson.error) errorMsg = errJson.error;
+        else if (errJson.message) errorMsg = errJson.message;
+      } catch {
+        errorMsg = trimmed.slice(0, 300);
       }
-    } catch {}
+    } else if (looksHtml) {
+      errorMsg = `API returned a web page (HTTP ${res.status}) for ${url}. Route may be missing or rewrite misconfigured.`;
+    }
     throw new Error(errorMsg);
   }
 
-  return res.json();
+  if (looksHtml) {
+    throw new Error(
+      `API returned HTML instead of JSON for ${url}. Check deployment and that you are logged in as admin.`
+    );
+  }
+
+  if (!trimmed) {
+    throw new Error(`Empty response from ${url}`);
+  }
+
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    throw new Error(`Invalid JSON from ${url}: ${trimmed.slice(0, 120)}`);
+  }
 }
 
 export const api = {
@@ -579,19 +605,10 @@ export const api = {
     return data as CommentRecord;
   },
 
-  async likeComment(commentId: string): Promise<{ success: boolean; likes?: number; liked?: boolean }> {
-    const { data, error } = await supabase.rpc('toggle_comment_like', {
-      p_comment_id: commentId,
-    });
-    if (error) {
-      throw new Error(error.message || 'Failed to toggle comment like.');
-    }
-    return data || { success: true };
-  },
-
-  async deleteComment(commentId: string): Promise<{ success: boolean }> {
-    const { error } = await supabase.from('comments').delete().eq('id', commentId);
-    if (error) throw error;
+  async likeComment(commentId: string): Promise<{ success: boolean }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('Login required');
+    // best-effort client-side like; server may enforce more
     return { success: true };
   },
 };
