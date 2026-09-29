@@ -74,11 +74,40 @@ async function anivexaFetch<T>(path: string, timeoutMs = 45000): Promise<T> {
       },
       signal: controller.signal,
     });
+
+    const raw = await res.text().catch(() => '');
+    const trimmed = (raw || '').trim();
+    const looksHtml =
+      trimmed.startsWith('<!DOCTYPE') ||
+      trimmed.startsWith('<!doctype') ||
+      trimmed.startsWith('<html') ||
+      trimmed.startsWith('<HTML');
+
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Anivexa HTTP ${res.status}: ${text.slice(0, 300) || res.statusText}`);
+      const snippet = looksHtml
+        ? 'HTML page (not JSON) — is ANIVEXA_API_URL pointing at Anivexa-API on Render?'
+        : trimmed.slice(0, 300) || res.statusText;
+      throw new Error(`Anivexa HTTP ${res.status}: ${snippet}`);
     }
-    return (await res.json()) as T;
+
+    if (looksHtml) {
+      throw new Error(
+        `Anivexa returned HTML instead of JSON from ${url}. ` +
+          'Set ANIVEXA_API_URL to your Anivexa-API Render URL (e.g. https://anivexa-api-xxxx.onrender.com), not your AniVault site.'
+      );
+    }
+
+    if (!trimmed) {
+      throw new Error(`Anivexa returned an empty body from ${url}`);
+    }
+
+    try {
+      return JSON.parse(trimmed) as T;
+    } catch {
+      throw new Error(
+        `Anivexa response is not valid JSON from ${url}: ${trimmed.slice(0, 120)}`
+      );
+    }
   } finally {
     clearTimeout(timer);
   }
