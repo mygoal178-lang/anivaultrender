@@ -248,6 +248,54 @@ export const api = {
     });
   },
 
+  /** Fetch streams for one provider/episode (for admin embed testing) */
+  async getAnivexaWatch(params: {
+    provider: string;
+    anilistId: number | string;
+    audio?: 'sub' | 'dub';
+    episode: number;
+  }): Promise<{
+    provider: string;
+    anilist_id: number;
+    episode: number;
+    audio: string;
+    streams: Array<{
+      url: string;
+      type: string;
+      server?: string;
+      referer?: string;
+      priority?: number;
+      isActive?: boolean;
+    }>;
+    intro?: { start: number; end: number } | null;
+    outro?: { start: number; end: number } | null;
+    mal_id?: number | null;
+    error?: string | null;
+  }> {
+    const qs = new URLSearchParams({
+      provider: params.provider,
+      anilistId: String(params.anilistId),
+      audio: params.audio || 'sub',
+      episode: String(params.episode),
+    });
+    return fetchJson(`/api/admin/anivexa/watch?${qs.toString()}`);
+  },
+
+  /** Probe whether an embed/stream URL responds (admin quality check) */
+  async testAnivexaEmbed(url: string): Promise<{
+    ok: boolean;
+    status?: number;
+    contentType?: string;
+    method?: string;
+    latencyMs?: number;
+    error?: string;
+  }> {
+    return fetchJson('/api/admin/anivexa/test-embed', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  },
+
   async saveAdminEpisode(epData: {
     id?: string;
     anime_mal_id: number;
@@ -319,8 +367,6 @@ export const api = {
     if (newValue.length < 6) throw new Error('New password must be at least 6 characters.');
     if (oldValue === newValue) throw new Error('New password must be different from the current password.');
 
-    // Verify the old password with a short-lived client so a failed check never
-    // replaces the user's existing browser session.
     const email = (await supabase.auth.getUser()).data.user?.email;
     if (!email) throw new Error('Your authenticated account could not be verified. Please sign in again.');
 
