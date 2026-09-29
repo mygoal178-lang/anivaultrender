@@ -3,6 +3,10 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { app } from './server/app.js';
+import { registerAnivexaExtraRoutes } from './server/anivexaExtraRoutes.js';
+
+// Mount Anivexa watch + embed-test admin routes
+registerAnivexaExtraRoutes(app);
 
 async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
